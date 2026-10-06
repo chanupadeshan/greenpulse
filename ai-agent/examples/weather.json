@@ -1,0 +1,7 @@
+{
+  "main": {"temp": 29.5, "humidity": 80},
+  "wind": {"speed": 2.5},
+  "rain": {"1h": 0.4},
+  "weather": [{"description": "light rain"}],
+  "dt": 1791268200
+}
