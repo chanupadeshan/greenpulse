@@ -1,0 +1,58 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.cache/
+.uv-cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.direnv/
+
+# Build and test output
+build/
+dist/
+*.egg-info/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Local datasets, trained models, and generated reports
+/ml/data/
+/ml/models/
+/ml/results/
+
+# Agent runtime files and private sensor readings
+/ai-agent/data/
+/ai-agent/results/
+/ai-agent/checkpoints/
+/ai-agent/logs/
+/ai-agent/readings.csv
+/readings.csv
+
+# Local secrets and credentials
+.env
+.env.*
+.envrc
+!.env.example
+!.env.sample
+/.aws/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# Editor and operating-system files
+.idea/
+.DS_Store
+Thumbs.db
