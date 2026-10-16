@@ -1,3 +1,6 @@
+# Load the raw Excel dataset, clean sensor readings, and sort them chronologically.
+# Save cleaned data, train/validation/test splits, and a preprocessing summary.
+
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +21,10 @@ from config import (
 
 
 def find_workbook() -> Path:
+    """
+    find the excel dataset in the raw data directory
+    """
+
     preferred = [
         "hrzsi_dataset_and_analysis-1-1-object_df_raw.xlsx",
         "HRZSI_Dataset_and_Analysis (1).xlsx",
@@ -31,14 +38,16 @@ def find_workbook() -> Path:
 
     files = sorted(RAW_DIR.glob("*.xlsx"))
     if not files:
-        raise FileNotFoundError(
-            f"No .xlsx file found in {RAW_DIR}"
-        )
+        raise FileNotFoundError(f"No .xlsx file found in {RAW_DIR}")
 
     return files[0]
 
 
 def load_raw_data(path: Path) -> pd.DataFrame:
+    """
+    load the required columns from the raw excel dataset
+    """
+
     excel = pd.ExcelFile(path)
 
     if SHEET_NAME in excel.sheet_names:
@@ -48,43 +57,29 @@ def load_raw_data(path: Path) -> pd.DataFrame:
         sheet = excel.sheet_names[0]
 
     df = pd.read_excel(path, sheet_name=sheet)
-
-    missing = [
-        column for column in RAW_COLUMNS
-        if column not in df.columns
-    ]
-
+    missing = [column for column in RAW_COLUMNS if column not in df.columns]
     if missing:
-        raise ValueError(
-            f"Required columns are missing: {missing}"
-        )
+        raise ValueError(f"Required columns are missing: {missing}")
 
     return df[RAW_COLUMNS].copy()
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Clean the raw sensor readings, including renaming columns, parsing timestamps, converting to numeric.
+    """
+
     df = df.rename(columns=COLUMN_MAP)
-
-    # Parse timestamp.
-    df["timestamp"] = pd.to_datetime(
-        df["timestamp"],
-        errors="coerce",
-    )
-
+    # Parse timestamp. invalid timestamps will be coerced to NaT
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
     # The Excel file contains values such as 12:59:59.999.
     # Round them to the intended hourly timestamp.
     df["timestamp"] = df["timestamp"].dt.round("h")
-
     # Convert sensor columns to numeric.
     for column in BASE_FEATURES:
-        df[column] = pd.to_numeric(
-            df[column],
-            errors="coerce",
-        )
-
+        df[column] = pd.to_numeric(df[column], errors="coerce")
     # Remove invalid timestamp rows.
     df = df.dropna(subset=["timestamp"])
-
     # Sort and remove duplicate timestamps after rounding.
     df = (
         df.sort_values("timestamp")
@@ -95,7 +90,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         .reset_index(drop=True)
     )
 
-    # Broad physical validity checks.
+    # define acceptable ranges for each sensor reading
     valid_ranges = {
         "air_temp_c": (0, 50),
         "humidity": (0, 100),
@@ -105,22 +100,18 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         "soil_temp_l2_c": (0, 50),
     }
 
+    # Remove sensor readings that are outside the valid ranges, replacing them with NaN.
     for column, (minimum, maximum) in valid_ranges.items():
-        invalid = (
-            df[column].notna()
-            & ~df[column].between(minimum, maximum)
-        )
+        invalid = df[column].notna() & ~df[column].between(minimum, maximum)
         df.loc[invalid, column] = np.nan
 
-    # The EDA showed no missing values in the original six sensors.
-    # This remains defensive in case the source workbook changes.
-    df = df.dropna(
-        subset=BASE_FEATURES
-    ).reset_index(drop=True)
+    # remove rows containing missing sensor readings
+    df = df.dropna(subset=BASE_FEATURES).reset_index(drop=True)
 
     return df
 
 
+# Split the dataset into chronological train/validation/test splits
 def chronological_split(df: pd.DataFrame):
     n = len(df)
 

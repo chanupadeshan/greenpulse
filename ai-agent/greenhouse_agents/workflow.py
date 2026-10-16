@@ -6,6 +6,7 @@ from .ml import MLClient
 from .sensors import SensorClient
 from .state import GreenhouseState
 from .weather import WeatherClient
+from .decision import decision_report
 
 
 def build_workflow(settings, *, sensor_client=None, ml_client=None, weather_client=None,
@@ -20,12 +21,15 @@ def build_workflow(settings, *, sensor_client=None, ml_client=None, weather_clie
     builder = StateGraph(GreenhouseState)
     for name, node in nodes.items():
         builder.add_node(name, node)
+    builder.add_node("decision_agent", lambda state: {
+        "decision_report": decision_report(state), "history": ["decision_agent"]})
     builder.add_edge(START, "sensor_agent")
     builder.add_edge(START, "weather_agent")
     builder.add_edge("sensor_agent", "ml_agent")
     # Explicit barrier: master runs once after both completed branches.
     builder.add_edge(["ml_agent", "weather_agent"], "master_agent")
-    builder.add_edge("master_agent", END)
+    builder.add_edge("master_agent", "decision_agent")
+    builder.add_edge("decision_agent", END)
     return builder.compile()
 
 

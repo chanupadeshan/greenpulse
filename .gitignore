@@ -56,3 +56,24 @@ coverage.xml
 .idea/
 .DS_Store
 Thumbs.db
+
+/*accessKeys.csv
+/.aws-local/
+
+# Node dependencies and Node-RED local runtime files
+node_modules/
+/node-red/.config*
+/node-red/.sessions*
+/node-red/.flows*
+/node-red/flows_cred.json*
+/node-red/lib/
+/node-red/context/
+
+# Gmail OAuth credentials and generated email reports
+/email-reports/credentials*.json
+/email-reports/client_secret*.json
+/email-reports/token*.json
+/email-reports/runtime/
+/email-reports/sample/report.html
+/email-reports/sample/report.txt
+/email-reports/sample/delivery.json

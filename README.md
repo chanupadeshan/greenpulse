@@ -1,12 +1,38 @@
 # GreenPulse AI
 
 GreenPulse AI combines greenhouse sensor readings, machine learning anomaly detection,
-and outdoor weather to provide plant-care recommendations. The project has two parts:
+and outdoor weather to provide plant-care recommendations. The project has three parts:
 
 - **ML pipeline:** preprocess hourly sensor data, train and compare three anomaly models,
   and predict whether the latest sensor pattern is unusual.
 - **AI-agent workflow:** collect sensor and weather data, run the trained model, and use
   a Groq-powered plant specialist to combine the evidence into recommendations.
+- **Node-RED dashboard:** display DynamoDB device readings, prediction readiness, sensor
+  trends, agent reports, and grower action plans through a local Python API.
+
+## Node-RED dashboard
+
+The dashboard has separate **Prediction** and **AI assistant** tabs:
+
+```bash
+bash scripts/start-dashboard.sh --demo
+```
+
+Open **http://127.0.0.1:1880/dashboard/greenhouse**. Demo mode explicitly labels simulated
+sensors/weather, uses the real saved model, and skips external services. Stop with Ctrl+C.
+Run without `--demo` to query the configured DynamoDB device every minute.
+
+The **AI assistant** at **http://127.0.0.1:1880/dashboard/assistant** answers plant-related
+questions only when submitted. Choose general plant knowledge or include the cached
+sensor/model reports for anomaly suggestions. Chat runs independently of prediction
+and does not query DynamoDB again. No AI requests run on a timer.
+
+The inspected live data currently has null soil temperatures at both layers. The saved
+model requires both values, so the dashboard shows the readings but blocks prediction
+until those measurements are restored. `GROQ_API_KEY` is needed for AI recommendations;
+greenhouse coordinates are needed for outdoor weather. Crop details may remain unspecified.
+
+See [dashboard setup, field mappings, configuration, and checks](node-red/README.md).
 
 The greenhouse country context is **Sri Lanka**, with `Asia/Colombo` as the default sensor
 timezone. The exact location and crop details are configured locally.
@@ -19,6 +45,7 @@ timezone. The exact location and crop details are configured locally.
 | **2. Sensor agent** | Reads CSV or HTTP JSON data, validates readings, and checks timestamps |
 | **3. Weather agent** | Fetches current outdoor conditions from OpenWeather |
 | **4. Master agent** | Combines sensor, ML, weather, and crop context into plant-care recommendations using Groq |
+| **5. Decision agent** | Plans evidence-driven follow-up checks and gathers recommendations for grower review |
 
 ```mermaid
 flowchart LR
@@ -27,7 +54,8 @@ flowchart LR
     S --> M[ML agent]
     M --> P[Master plant specialist]
     W --> P
-    P --> END
+    P --> D[Decision agent]
+    D --> END
 ```
 
 Sensor and weather collection run concurrently. ML scoring waits for sensor data; the
@@ -57,7 +85,6 @@ greenhouse/
     ├── requirements.txt
     ├── example.py                  # Full workflow CLI
     ├── greenhouse_agents/          # Clients, schemas, nodes, and workflow
-    ├── topics/                     # Five standalone examples with notes
     ├── examples/                   # Trackable sample inputs
     ├── tests/
     └── results/                    # Local generated reports
@@ -203,7 +230,7 @@ The prediction script supports `--model isolation_forest` and `--model lstm_auto
 Without `--model`, it uses the saved selected model, falling back to Isolation Forest if
 there is no selection file. The agent workflow defaults separately to `ML_MODEL=autoencoder`.
 
-## Run the four-agent workflow
+## Run the agent workflow
 
 After training or restoring model artifacts, test the graph without API keys:
 
@@ -235,7 +262,7 @@ python ai-agent/example.py --sensor-csv readings.csv \
   --graph ai-agent/results/workflow.mmd
 ```
 
-The output contains `sensor_report`, `ml_report`, `weather_report`, `master_report`, and
+The output contains `sensor_report`, `ml_report`, `weather_report`, `master_report`, `decision_report`, and
 execution `history`. Master advice includes a summary, prioritized actions, reasons,
 evidence sources, missing information, and cautions. Invalid or unavailable inputs
 produce explicit failure reports; the CLI exits with status 1 when a required agent fails.
@@ -269,7 +296,7 @@ OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 python -m unittest discover -s ml/tests -v
 OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 python -m unittest discover -s ai-agent/tests -v
 ```
 
-The validated workspace passed **6 ML tests, 11 agent tests, and all 5 topic examples**.
+The validated workspace passed **6 ML tests and 11 agent tests**.
 Checks cover chronological splits, feature/scaler consistency, saved-model predictions,
 input validation, timezone handling, HTTP contracts, branch synchronization, failure
 reports, and Groq structured-output parsing with mocked HTTP. The dense-model integration
@@ -283,11 +310,6 @@ with real keys. Local validation reports are generated under `ml/results/` and
 
 - [ML setup, training, and prediction](ml/README.md)
 - [Agent setup, configuration, and input contracts](ai-agent/README.md)
-- [ML-agent example](ai-agent/topics/01-ml-agent/README.md)
-- [Sensor-agent example](ai-agent/topics/02-sensor-agent/README.md)
-- [Weather-agent example](ai-agent/topics/03-weather-agent/README.md)
-- [Master-agent example](ai-agent/topics/04-master-agent/README.md)
-- [Complete workflow example](ai-agent/topics/05-greenhouse-workflow/README.md)
 
 The agent structure follows the runnable examples in
 [langgraph-workflow-lab](https://github.com/chanupadeshan/langgraph-workflow-lab) and

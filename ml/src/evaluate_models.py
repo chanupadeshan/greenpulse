@@ -1,7 +1,9 @@
+# Compare trained models on the held-out test split and save evaluation reports.
+# Injected anomalies provide synthetic metrics; they do not establish real-world accuracy.
+
 import numpy as np
 import pandas as pd
-from sklearn.metrics import (average_precision_score, f1_score, precision_score,
-                            recall_score, roc_auc_score)
+from sklearn.metrics import (average_precision_score, f1_score, precision_score, recall_score, roc_auc_score)
 
 from config import EVALUATION_RESULTS_DIR
 from ml_utils import (load_feature_splits, transform_features, create_sequences,
@@ -10,6 +12,8 @@ from ml_utils import (load_feature_splits, transform_features, create_sequences,
 from model_io import MODEL_NAMES, load_artifacts
 
 
+# Compare score-based alerts with synthetic labels: 0=unchanged sample, 1=artificial anomaly.
+# Precision measures how many alerts match those labels; recall measures how many anomalies were found.
 def classification_metrics(labels, scores, threshold):
     predictions = (scores > threshold).astype(int)
     return {
@@ -21,8 +25,10 @@ def classification_metrics(labels, scores, threshold):
     }
 
 
+# Evaluate one saved model without retraining it or changing its saved alert threshold.
 def evaluate_model(data, name):
     model, scaler, metadata = load_artifacts(name)
+    # The test split is held back from training and tuning; scale it with the saved training scaler.
     X = transform_features(data["test"], scaler)
     if name == "lstm_autoencoder":
         X = create_sequences(X, metadata["sequence_length"], data["test"]["timestamp"])
@@ -36,6 +42,8 @@ def evaluate_model(data, name):
         real_scores = reconstruction_errors(model, X)
         scores = reconstruction_errors(model, challenge)
     metrics = classification_metrics(labels, scores, metadata["threshold"])
+    # Also report how often unchanged test samples exceed the threshold.
+    # This is an alert rate, not proof that those observations are true anomalies.
     metrics.update({
         "model": name,
         "real_test_anomaly_rate": float(np.mean(real_scores > metadata["threshold"])),
@@ -44,10 +52,12 @@ def evaluate_model(data, name):
     return metrics
 
 
+# Keep a convenience entry point for callers evaluating only the Isolation Forest.
 def evaluate_isolation_forest(data):
     return evaluate_model(data, "isolation_forest")
 
 
+# Evaluate all three saved models and write the comparison table used by select_best_model.py.
 def main():
     data = load_feature_splits()
     result = pd.DataFrame([evaluate_model(data, name) for name in MODEL_NAMES])

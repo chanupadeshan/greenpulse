@@ -1,3 +1,6 @@
+# Search model settings using training data and synthetic validation anomalies.
+# Save tuning results and the best parameters for each model before final training.
+
 import argparse
 from itertools import product
 
@@ -5,11 +8,7 @@ import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import roc_auc_score
 
-from config import (
-    MODEL_DIR,
-    TUNING_RESULTS_DIR,
-    RANDOM_STATE,
-)
+from config import MODEL_DIR, TUNING_RESULTS_DIR, RANDOM_STATE
 from ml_utils import (
     load_feature_splits,
     fit_scaler,
@@ -22,44 +21,22 @@ from ml_utils import (
     save_json,
     set_seed,
 )
-from models import (
-    DenseAutoencoder,
-    LSTMAutoencoder,
-)
+from models import DenseAutoencoder, LSTMAutoencoder
 
 
-def tune_isolation_forest(
-    X_train,
-    X_validation,
-    quick=False,
-):
+# Try several forest settings and rank them by separation of synthetic validation anomalies.
+# Each candidate fits only the training set; the test set is not used to choose settings.
+def tune_isolation_forest(X_train, X_validation, quick=False):
     if quick:
-        candidates = [
-            (200, 0.75, 1.0),
-            (300, 1.0, 1.0),
-        ]
+        candidates = [(200, 0.75, 1.0), (300, 1.0, 1.0)]
     else:
-        candidates = list(product(
-            [200, 400],
-            [0.75, 1.0],
-            [0.75, 1.0],
-        ))
+        candidates = list(product([200, 400], [0.75, 1.0], [0.75, 1.0]))
 
-    X_challenge, y = (
-        inject_tabular_anomalies(
-            X_validation,
-            fraction=0.50,
-            magnitude=3.0,
-        )
-    )
+    X_challenge, y = inject_tabular_anomalies(X_validation, fraction=0.50, magnitude=3.0)
 
     rows = []
 
-    for (
-        n_estimators,
-        max_samples,
-        max_features,
-    ) in candidates:
+    for (n_estimators, max_samples, max_features) in candidates:
 
         model = IsolationForest(
             n_estimators=n_estimators,
@@ -72,14 +49,9 @@ def tune_isolation_forest(
 
         model.fit(X_train)
 
-        scores = -model.score_samples(
-            X_challenge
-        )
+        scores = -model.score_samples(X_challenge)
 
-        auc = roc_auc_score(
-            y,
-            scores,
-        )
+        auc = roc_auc_score(y, scores)
 
         rows.append({
             "n_estimators": n_estimators,
@@ -88,18 +60,14 @@ def tune_isolation_forest(
             "synthetic_auc": auc,
         })
 
-    result = pd.DataFrame(
-        rows
-    ).sort_values(
-        "synthetic_auc",
-        ascending=False,
-    )
+    result = pd.DataFrame(rows).sort_values("synthetic_auc", ascending=False)
 
     best = result.iloc[0].to_dict()
 
     return result, best
 
 
+# Compare candidate neural networks, using individual rows for dense models and hourly windows for LSTM.
 def tune_neural(X_train, X_validation, candidates, lstm=False, quick=False,
                 train_timestamps=None, validation_timestamps=None):
     rows = []
@@ -118,12 +86,14 @@ def tune_neural(X_train, X_validation, candidates, lstm=False, quick=False,
             model, train, validation, epochs=3 if quick else 60,
             learning_rate=params["learning_rate"], patience=8,
         )
+        # A higher ROC-AUC means artificial anomalies tend to receive higher scores than unchanged samples.
         auc = roc_auc_score(labels, reconstruction_errors(model, challenge))
         rows.append({**params, "synthetic_auc": float(auc), "validation_loss": loss})
     result = pd.DataFrame(rows).sort_values("synthetic_auc", ascending=False)
     return result, result.iloc[0].to_dict()
 
 
+# List candidate network sizes, dropout rates, and learning rates for the dense model.
 def tune_dense_autoencoder(X_train, X_validation, quick=False):
     candidates = [
         dict(hidden_dim=32, latent_dim=8, dropout=0.1, learning_rate=1e-3),
@@ -134,6 +104,7 @@ def tune_dense_autoencoder(X_train, X_validation, quick=False):
     return tune_neural(X_train, X_validation, candidates, quick=quick)
 
 
+# Compare hourly window lengths; quick mode uses smaller networks and shorter training.
 def tune_lstm_autoencoder(X_train, X_validation, quick=False,
                           train_timestamps=None, validation_timestamps=None):
     candidates = [
@@ -145,6 +116,7 @@ def tune_lstm_autoencoder(X_train, X_validation, quick=False,
                       train_timestamps=train_timestamps, validation_timestamps=validation_timestamps)
 
 
+# Load feature splits, fit the scaler on training data, and save each model's ranked trials and best settings.
 def main():
     parser = argparse.ArgumentParser(description="Tune using validation data and synthetic anomalies")
     parser.add_argument("--quick", action="store_true")

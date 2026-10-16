@@ -14,6 +14,7 @@ import httpx
 from pydantic import ValidationError
 
 from greenhouse_agents.config import PROJECT_ROOT, Settings
+from greenhouse_agents.agents import master_error_report
 from greenhouse_agents.demo import DemoSensorClient, DemoWeatherClient
 from greenhouse_agents.master import MasterClient, build_chain, build_context
 from greenhouse_agents.ml import MLClient
@@ -49,6 +50,16 @@ class CaptureMaster:
 
 
 class AgentTests(unittest.TestCase):
+    def test_master_authentication_error_is_actionable_and_redacted(self):
+        from groq import AuthenticationError
+        response = httpx.Response(401, request=httpx.Request('POST', 'https://api.groq.com/openai/v1/chat/completions'))
+        error = AuthenticationError('secret-key-in-error', response=response, body={'message':'secret-key-in-error'})
+        report = master_error_report(error)
+        self.assertEqual(report['error_type'], 'AuthenticationError')
+        self.assertIn('GROQ_API_KEY', report['error'])
+        self.assertIn('401', report['error'])
+        self.assertNotIn('secret-key-in-error', json.dumps(report))
+
     def test_environment_parsing_and_override(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / '.env'
@@ -119,7 +130,7 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(len(capture.calls), 1)
         self.assertEqual(capture.calls[0]['ml_report']['status'], 'ok')
         self.assertEqual(capture.calls[0]['weather_report']['status'], 'ok')
-        self.assertCountEqual(result['history'], ['sensor_agent', 'weather_agent', 'ml_agent', 'master_agent'])
+        self.assertCountEqual(result['history'], ['sensor_agent', 'weather_agent', 'ml_agent', 'master_agent', 'decision_agent'])
 
     def test_sensor_failure_skips_ml_and_keeps_weather(self):
         class BrokenSensor:

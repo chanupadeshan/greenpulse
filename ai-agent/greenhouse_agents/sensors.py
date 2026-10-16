@@ -13,6 +13,9 @@ class SensorClient:
         self.client = client
 
     def fetch(self):
+        if self.settings.sensor_source == "dynamodb":
+            from .dynamodb import DynamoSensorClient
+            return DynamoSensorClient(self.settings).fetch()
         if self.settings.sensor_source == "csv":
             with self.settings.sensor_csv_path.open(newline="", encoding="utf-8-sig") as file:
                 rows = list(csv.DictReader(file))

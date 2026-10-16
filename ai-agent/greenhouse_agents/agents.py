@@ -1,6 +1,20 @@
 from .state import GreenhouseState
 
 
+def master_error_report(error):
+    error_type = type(error).__name__
+    messages = {
+        "AuthenticationError": "Groq rejected the API key (401). Replace GROQ_API_KEY in .env with a valid Groq key, then restart the backend.",
+        "PermissionDeniedError": "Groq denied access (403). Check that the API key and account can use the configured model.",
+        "RateLimitError": "Groq's request or token limit was reached (429). Wait before retrying and check your account limits.",
+        "APITimeoutError": "Groq timed out. Retry the assessment and check connectivity.",
+        "APIConnectionError": "Could not connect to Groq. Check network connectivity and retry.",
+        "NotFoundError": "Groq could not find the configured model. Check GROQ_MODEL in .env and restart the backend.",
+    }
+    return {"status": "error", "error_type": error_type,
+            "error": messages.get(error_type, "Plant recommendation failed; check Groq configuration, availability and output schema")}
+
+
 def build_nodes(sensor_client, ml_client, weather_client, master_client):
     def sensor_agent(state: GreenhouseState):
         try:
@@ -34,8 +48,7 @@ def build_nodes(sensor_client, ml_client, weather_client, master_client):
         try:
             report = master_client.advise(state)
         except Exception as error:
-            report = {"status": "error", "error_type": type(error).__name__,
-                      "error": "Plant recommendation failed; check Groq configuration, availability and output schema"}
+            report = master_error_report(error)
         return {"master_report": report, "history": ["master_agent"]}
 
     return {"sensor_agent": sensor_agent, "ml_agent": ml_agent,

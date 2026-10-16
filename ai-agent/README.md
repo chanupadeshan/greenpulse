@@ -3,7 +3,7 @@
 Four cooperating LangGraph agents combine greenhouse readings, the trained ML model,
 OpenWeather observations, and Groq plant-specialist advice. This follows the learning
 labs' `TypedDict` state → node functions → graph edges → compile → invoke pattern,
-with standalone topic examples and notes. The master uses the same
+with typed state and explicit workflow nodes. The master uses the same
 `ChatPromptTemplate | ChatGroq.with_structured_output(...)` approach as the LangChain lab.
 
 | Agent | Responsibility | Implementation |
@@ -44,14 +44,7 @@ ai-agent/
 │   ├── agents.py                # Four node functions and failure reports
 │   ├── workflow.py              # StateGraph construction
 │   ├── cli.py
-│   ├── demo.py                  # Clearly marked simulated inputs
-│   └── topic_runner.py
-├── topics/
-│   ├── 01-ml-agent/
-│   ├── 02-sensor-agent/
-│   ├── 03-weather-agent/
-│   ├── 04-master-agent/
-│   └── 05-greenhouse-workflow/
+│   └── demo.py                  # Clearly marked simulated inputs
 ├── examples/                    # Example CSV and weather response
 └── tests/
 ```

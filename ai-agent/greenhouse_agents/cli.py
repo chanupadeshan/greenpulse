@@ -8,7 +8,7 @@ from .workflow import build_workflow, initial_state
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GreenPulse four-agent greenhouse assessment")
+    parser = argparse.ArgumentParser(description="GreenPulse five-agent greenhouse assessment")
     parser.add_argument("--env-file", type=Path, help="Default: project-root .env")
     parser.add_argument("--sensor-csv", type=Path, help="Use this CSV instead of configured sensor source")
     parser.add_argument("--model", choices=["autoencoder", "isolation_forest", "lstm_autoencoder"])

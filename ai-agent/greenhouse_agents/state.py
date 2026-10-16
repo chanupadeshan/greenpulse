@@ -8,4 +8,5 @@ class GreenhouseState(TypedDict, total=False):
     ml_report: dict
     weather_report: dict
     master_report: dict
+    decision_report: dict
     history: Annotated[list[str], operator.add]
